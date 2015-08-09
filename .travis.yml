@@ -1,0 +1,9 @@
+language: java
+jdk:
+  - oraclejdk8
+notifications:
+  email:
+    recipients:
+      - tlb@nversion.dk
+    on_success: never
+    on_failure: always
