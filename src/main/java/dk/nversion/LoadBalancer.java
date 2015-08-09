@@ -162,16 +162,13 @@ public class LoadBalancer {
             return this;
         }
 
-        public CompletableFutureConfigBuilder setMaxFailureRate(int maxFailures, long time, TimeUnit timeUnit) {
+        public CompletableFutureConfigBuilder setMaxFailureRate(int maxFailures, long failuresTime, TimeUnit failuresTimeUnit, long suspensionTime, TimeUnit suspensionTimeUnit) {
             loadBalancer.failureRateMaxFailures = maxFailures;
-            loadBalancer.failureRateTimeUnit = timeUnit;
-            loadBalancer.failureRateTime = time;
-            return this;
-        }
+            loadBalancer.failureRateTime = failuresTime;
+            loadBalancer.failureRateTimeUnit = failuresTimeUnit;
+            loadBalancer.suspensionTime = suspensionTime;
+            loadBalancer.suspensionTimeUnit = suspensionTimeUnit;
 
-        public CompletableFutureConfigBuilder setSuspensionTime(long time, TimeUnit timeUnit) {
-            loadBalancer.suspensionTime = time;
-            loadBalancer.suspensionTimeUnit = timeUnit;
             return this;
         }
 
@@ -179,6 +176,12 @@ public class LoadBalancer {
             loadBalancer.policy = policy;
             return this;
         }
+
+        public CompletableFutureConfigBuilder setMonitor(long checkInterval, TimeUnit checkTimeUnit,  int unhealthyThreshold, int healthyThreshold, long suspensionTime, TimeUnit suspensionTimeUnit, Function<Integer, CompletableFuture<Boolean>> function) {
+            // TODO: Implement
+            return this;
+        }
+
 
         public LoadBalancer build() {
             loadBalancer.suspensionTimes = new AtomicLongArray(loadBalancer.endpointCount);

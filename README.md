@@ -28,8 +28,7 @@ LoadBalancer loadBalancer = LoadBalancer.builder()
     .setEndpointCount(urls.length)
     .setPolicy(LoadBalancerPolicy.ROUND_ROBIN)
     // 10 failures in 30 seconds will take the endpoint out of rotation for 60 seconds
-    .setMaxFailureRate(10, 30, TimeUnit.SECONDS)
-    .setSuspensionTime(60, TimeUnit.SECONDS)
+    .setMaxFailureRate(10, 30, TimeUnit.SECONDS, 60, TimeUnit.SECONDS)
     // Try to call the endpoints 2 times more if the first call fails
     .setRetryCount(2)
     .build();

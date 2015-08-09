@@ -31,8 +31,7 @@ public class LoadBalancerTest {
         String[] urls = new String[] { "url1", "url2", "url3" };
 
         LoadBalancer config = LoadBalancer.builder()
-                .setMaxFailureRate(10, 30, TimeUnit.SECONDS)
-                .setSuspensionTime(60, TimeUnit.SECONDS)
+                .setMaxFailureRate(10, 30, TimeUnit.SECONDS, 60, TimeUnit.SECONDS)
                 .setRetryCount(2)
                 .setEndpointCount(urls.length)
                 .setPolicy(LoadBalancerPolicy.ROUND_ROBIN)
@@ -66,8 +65,7 @@ public class LoadBalancerTest {
         String[] urls = new String[] { "url1", "url2", "url3" };
 
         LoadBalancer config = LoadBalancer.builder()
-                .setMaxFailureRate(10, 30, TimeUnit.SECONDS)
-                .setSuspensionTime(60, TimeUnit.SECONDS)
+                .setMaxFailureRate(10, 30, TimeUnit.SECONDS, 60, TimeUnit.SECONDS)
                 .setRetryCount(0)
                 .setEndpointCount(urls.length)
                 .setPolicy(LoadBalancerPolicy.ROUND_ROBIN)
@@ -96,8 +94,7 @@ public class LoadBalancerTest {
         String[] urls = new String[] { "url1" };
 
         LoadBalancer config = LoadBalancer.builder()
-                .setMaxFailureRate(1, 30, TimeUnit.SECONDS)
-                .setSuspensionTime(1000, TimeUnit.SECONDS)
+                .setMaxFailureRate(1, 30, TimeUnit.SECONDS, 1000, TimeUnit.SECONDS)
                 .setRetryCount(0)
                 .setEndpointCount(urls.length)
                 .setPolicy(LoadBalancerPolicy.ROUND_ROBIN)
@@ -126,6 +123,48 @@ public class LoadBalancerTest {
         Assert.assertEquals("java.lang.Exception: Normal exception", results.get(0).getMessage());
         Assert.assertEquals("dk.nversion.LoadBalancerException: All backends suspended", results.get(1).getMessage());
         Assert.assertEquals("dk.nversion.LoadBalancerException: All backends suspended", results.get(2).getMessage());
+    }
+
+    // TODO: Implement monitor
+    @Test
+    public void testLoadBalancerMonitor() throws Exception {
+    /*   String[] urls = new String[] { "url1" };
+
+
+        LoadBalancer config = LoadBalancer.builder()
+                .setEndpointCount(urls.length)
+                .setMonitor(30, TimeUnit.SECONDS, 3, 1, 60, TimeUnit.SECONDS, (index) -> {
+                    CompletableFuture<Boolean> monitorCheck = new CompletableFuture<Boolean>();
+                    // Check urls[index] is up
+                    monitorCheck.complete(false);
+                    return monitorCheck;
+                })
+                .build();
+
+        List<CompletableFuture<String>> futureResults = new ArrayList<>();
+        for(int i = 0; i < 3; i++) {
+            CompletableFuture<String> roundRobinFuture = config.wrap(() -> {
+                CompletableFuture<String> completableFuture = new CompletableFuture<>();
+                completableFuture.completeExceptionally(new Exception("Normal exception"));
+                return completableFuture;
+            });
+            futureResults.add(roundRobinFuture);
+        }
+
+        List<Exception> results = new ArrayList<>();
+        for(CompletableFuture<String> future : futureResults) {
+            try {
+                future.get();
+
+            } catch (Exception ex){
+                results.add(ex);
+            }
+        }
+
+        Assert.assertEquals("java.lang.Exception: Normal exception", results.get(0).getMessage());
+        Assert.assertEquals("dk.nversion.LoadBalancerException: All backends suspended", results.get(1).getMessage());
+        Assert.assertEquals("dk.nversion.LoadBalancerException: All backends suspended", results.get(2).getMessage());
+        */
     }
 
 }
