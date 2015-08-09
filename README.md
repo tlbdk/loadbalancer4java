@@ -17,7 +17,7 @@ Still needs to be pushed to Nexus:
 ```
 ## How to Use It
 
-Create a List or Array with your endpoints, then create a new LoadBalancer with the prefered configuration:
+Create a List or Array with your endpoints, then create a new LoadBalancer with the preferred configuration:
 ```java
 String[] urls = new String[] { "url1", "url2", "url3" };
 
@@ -36,7 +36,7 @@ LoadBalancer loadBalancer = LoadBalancer.builder()
 Wrap the call where you call your backend with the loadBalancer and use the CompletableFuture exactly the same way as before:
 ```java
 // CompletableFuture<String> future = backend.call(urls[0], "request1");
-CompletableFuture<String> loadBalancedFuture = loadBalancer.wrap((retryCount, index) -> backend.call(urls[index], "request1"));
+CompletableFuture<String> loadBalancedFuture = loadBalancer.wrap((index, retryCount) -> backend.call(urls[index], "request1"));
 loadBalancedFuture.whenComplete((response, ex) -> {
     if(ex == null) {
         // This is

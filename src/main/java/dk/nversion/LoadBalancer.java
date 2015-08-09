@@ -36,13 +36,13 @@ public class LoadBalancer {
 
     public <T> CompletableFuture<T> wrap(Supplier<CompletableFuture<T>> function)   {
         CompletableFuture<T> result = new CompletableFuture<>();
-        retryHelper((retryCount, index) -> function.get(), result);
+        retryHelper((index, retryCount) -> function.get(), result);
         return result;
     }
 
     public <T> CompletableFuture<T> wrap(Function<Integer, CompletableFuture<T>> function)   {
         CompletableFuture<T> result = new CompletableFuture<>();
-        retryHelper((retryCount, index) -> function.apply(retryCount), result);
+        retryHelper((index, retryCount) -> function.apply(index), result);
         return result;
     }
 
@@ -57,7 +57,7 @@ public class LoadBalancer {
         final int index = getNextIndex(function);
 
         if(index > -1) {
-            function.apply(retries, index).whenComplete((obj, ex) -> {
+            function.apply(index, retries).whenComplete((obj, ex) -> {
                 if (ex == null) {
                     registerSuccess(function, index);
                     result.complete(obj);

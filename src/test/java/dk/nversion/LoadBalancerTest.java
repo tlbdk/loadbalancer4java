@@ -39,7 +39,7 @@ public class LoadBalancerTest {
                 .build();
 
         final CountDownLatch latch = new CountDownLatch(1);
-        CompletableFuture<String> retryFuture = config.wrap((retryCount, index) -> {
+        CompletableFuture<String> retryFuture = config.wrap((index, retryCount) -> {
             CompletableFuture<String> completableFuture = new CompletableFuture<>();
             if (retryCount > 0) {
                 completableFuture.completeExceptionally(new Exception("Stuff"));
@@ -75,7 +75,7 @@ public class LoadBalancerTest {
 
         List<CompletableFuture<String>> futureResults = new ArrayList<>();
         for(int i = 0; i < urls.length; i++) {
-            CompletableFuture<String> roundRobinFuture = config.wrap((retryCount, index) -> {
+            CompletableFuture<String> roundRobinFuture = config.wrap((index) -> {
                 CompletableFuture<String> completableFuture = new CompletableFuture<>();
                 completableFuture.complete(urls[index]);
                 return completableFuture;
@@ -105,7 +105,7 @@ public class LoadBalancerTest {
 
         List<CompletableFuture<String>> futureResults = new ArrayList<>();
         for(int i = 0; i < 3; i++) {
-            CompletableFuture<String> roundRobinFuture = config.wrap((retryCount, index) -> {
+            CompletableFuture<String> roundRobinFuture = config.wrap(() -> {
                 CompletableFuture<String> completableFuture = new CompletableFuture<>();
                 completableFuture.completeExceptionally(new Exception("Normal exception"));
                 return completableFuture;
