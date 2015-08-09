@@ -1,4 +1,6 @@
 # loadbalancer4java
+[![Build Status](https://travis-ci.org/tlbdk/loadbalancer4java.svg?branch=master)](https://travis-ci.org/tlbdk/loadbalancer4java)
+
 Software load balancer for CompletableFutures in Java, that is meant as a simple replacement for Hystrix and Ribbon when using Java 8.
 
 It provides the following features:
