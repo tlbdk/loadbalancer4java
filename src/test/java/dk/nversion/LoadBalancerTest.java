@@ -128,19 +128,19 @@ public class LoadBalancerTest {
     // TODO: Implement monitor
     @Test
     public void testLoadBalancerMonitor() throws Exception {
-    /*   String[] urls = new String[] { "url1" };
-
+        String[] urls = new String[] { "url1" };
 
         LoadBalancer config = LoadBalancer.builder()
                 .setEndpointCount(urls.length)
-                .setMonitor(30, TimeUnit.SECONDS, 3, 1, 60, TimeUnit.SECONDS, (index) -> {
+                .setMonitor(100, TimeUnit.MILLISECONDS, 1, 1, (index) -> {
                     CompletableFuture<Boolean> monitorCheck = new CompletableFuture<Boolean>();
-                    // Check urls[index] is up
+                    // Check urls[index] is working as expected
                     monitorCheck.complete(false);
                     return monitorCheck;
                 })
                 .build();
 
+        Thread.sleep(500);
         List<CompletableFuture<String>> futureResults = new ArrayList<>();
         for(int i = 0; i < 3; i++) {
             CompletableFuture<String> roundRobinFuture = config.wrap(() -> {
@@ -161,10 +161,9 @@ public class LoadBalancerTest {
             }
         }
 
-        Assert.assertEquals("java.lang.Exception: Normal exception", results.get(0).getMessage());
+        Assert.assertEquals("dk.nversion.LoadBalancerException: All backends suspended", results.get(0).getMessage());
         Assert.assertEquals("dk.nversion.LoadBalancerException: All backends suspended", results.get(1).getMessage());
         Assert.assertEquals("dk.nversion.LoadBalancerException: All backends suspended", results.get(2).getMessage());
-        */
     }
 
 }

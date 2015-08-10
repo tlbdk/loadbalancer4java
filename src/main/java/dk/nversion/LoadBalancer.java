@@ -4,10 +4,9 @@ import java.lang.Integer;
 import java.lang.Object;
 import java.lang.System;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.concurrent.atomic.AtomicLongArray;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -34,6 +33,15 @@ public class LoadBalancer {
 
     private Map<Object,AtomicInteger> retryCounters = new ConcurrentHashMap<>();
 
+    ScheduledExecutorService scheduledExecutorService;
+    private long monitorCheckInterval;
+    private TimeUnit monitorCheckTimeUnit;
+    private int monitorUnhealthyThreshold;
+    private int monitorHealthyThreshold;
+    private AtomicIntegerArray monitorUnhealthyCounters;
+    private AtomicIntegerArray monitorHealthyCounters;
+    private Function<Integer, CompletableFuture<Boolean>> monitorFunction;
+
     public <T> CompletableFuture<T> wrap(Supplier<CompletableFuture<T>> function)   {
         CompletableFuture<T> result = new CompletableFuture<>();
         retryHelper((index, retryCount) -> function.get(), result);
@@ -57,22 +65,34 @@ public class LoadBalancer {
         final int index = getNextIndex(function);
 
         if(index > -1) {
-            function.apply(index, retries).whenComplete((obj, ex) -> {
-                if (ex == null) {
-                    registerSuccess(function, index);
-                    result.complete(obj);
-
-                } else {
-                    if (retries > 0) {
-                        registerFailure(function, index, false);
-                        retryHelper(function, result);
+            try {
+                function.apply(index, retries).whenComplete((obj, ex) -> {
+                    if (ex == null) {
+                        registerSuccess(function, index);
+                        result.complete(obj);
 
                     } else {
-                        registerFailure(function, index, true);
-                        result.completeExceptionally(ex);
+                        if (retries > 0) {
+                            registerFailure(function, index, false);
+                            retryHelper(function, result);
+
+                        } else {
+                            registerFailure(function, index, true);
+                            result.completeExceptionally(ex);
+                        }
                     }
+                });
+
+            } catch (Exception e) {
+                if (retries > 0) {
+                    registerFailure(function, index, false);
+                    retryHelper(function, result);
+
+                } else {
+                    registerFailure(function, index, true);
+                    result.completeExceptionally(e);
                 }
-            });
+            }
 
         } else {
             result.completeExceptionally(new LoadBalancerException("All backends suspended"));
@@ -105,7 +125,7 @@ public class LoadBalancer {
             // Don't retry same index
             if(tried[index] == 0) {
                 // Return index if endpoint is not suspended
-                if (suspensionTime == 0 || suspensionTimes.get(index) < now) {
+                if (suspensionTimes.get(index) < now) {
                     return index;
                 }
 
@@ -124,19 +144,21 @@ public class LoadBalancer {
     private void registerFailure(Object caller, int index, boolean last) {
         failureCounters.incrementAndGet(index);
 
-        // Try to save the failure time in the failureTimes array
-        long now = System.currentTimeMillis();
-        long oldestFailureTime =  now - failureRateTimeUnit.toMillis(failureRateTime);
-        int i;
-        for(i = 0; i < failureTimes[index].length(); i++) {
-            if(failureTimes[index].get(i) < oldestFailureTime) {
-                failureTimes[index].set(i, now);
-                break;
+        if(suspensionTime > 0) {
+            // Try to save the failure time in the failureTimes array
+            long now = System.currentTimeMillis();
+            long oldestFailureTime = now - failureRateTimeUnit.toMillis(failureRateTime);
+            int i;
+            for (i = 0; i < failureTimes[index].length(); i++) {
+                if (failureTimes[index].get(i) < oldestFailureTime) {
+                    failureTimes[index].set(i, now);
+                    break;
+                }
             }
-        }
-        // If all failureTimes slots are used then we can suspend the endpoint
-        if(suspensionTime != 0 && i == failureTimes[index].length() - 1) {
-            suspensionTimes.set(index, now + suspensionTimeUnit.toMillis(suspensionTime));
+            // If all failureTimes slots are used then we can suspend the endpoint
+            if (failureTimes[index].length() == 0 || i == failureTimes[index].length() - 1) {
+                suspensionTimes.set(index, now + suspensionTimeUnit.toMillis(suspensionTime));
+            }
         }
 
         // Remove the caller
@@ -145,40 +167,86 @@ public class LoadBalancer {
         }
     }
 
-    public static CompletableFutureConfigBuilder builder() {
-        return  new CompletableFutureConfigBuilder();
+    private void checkMonitors() {
+        for (int i = 0; i < endpointCount; i++) {
+            final int index = i;
+            try {
+                monitorFunction.apply(index).whenComplete((result, ex) -> {
+                    if (result && ex == null) {
+                        // Unset suspension time when we hit the healthy threshold
+                        if(monitorHealthyCounters.incrementAndGet(index) >= monitorHealthyThreshold) {
+                            suspensionTimes.set(index, 0);
+                            monitorHealthyCounters.set(index, 0);
+                        }
+                        // Reset unhealthy counter
+                        if(monitorUnhealthyCounters.get(index) > 0) {
+                            monitorUnhealthyCounters.set(index, 0);
+                        }
+
+                    } else {
+                        // Set suspension time when we hit the unhealthy threshold
+                        if(monitorUnhealthyCounters.incrementAndGet(index) >= monitorUnhealthyThreshold) {
+                            suspensionTimes.set(index, Long.MAX_VALUE);
+                            monitorUnhealthyCounters.set(index, 0);
+                        }
+                        // Reset healthy counter
+                        if(monitorHealthyCounters.get(index) > 0) {
+                            monitorHealthyCounters.set(index, 0);
+                        }
+                    }
+                });
+
+            } catch (Exception ex) { // Got exception trying to create the future
+                // Set suspension time when we hit the unhealthy threshold
+                if(monitorUnhealthyCounters.incrementAndGet(index) >= monitorUnhealthyThreshold) {
+                    suspensionTimes.set(index, Long.MAX_VALUE);
+                    monitorUnhealthyCounters.set(index, 0);
+                }
+                // Reset healthy counter
+                if(monitorHealthyCounters.get(index) > 0) {
+                    monitorHealthyCounters.set(index, 0);
+                }
+            }
+        }
     }
 
-    public static final class CompletableFutureConfigBuilder {
+    public static LoadBalancerBuilder builder() {
+        return  new LoadBalancerBuilder();
+    }
+
+    public static final class LoadBalancerBuilder {
         private LoadBalancer loadBalancer = new LoadBalancer();
 
-        public CompletableFutureConfigBuilder setRetryCount(int retries) {
+        public LoadBalancerBuilder setRetryCount(int retries) {
             loadBalancer.retries = retries;
             return this;
         }
 
-        public CompletableFutureConfigBuilder setEndpointCount(int count) {
+        public LoadBalancerBuilder setEndpointCount(int count) {
             loadBalancer.endpointCount = count;
             return this;
         }
 
-        public CompletableFutureConfigBuilder setMaxFailureRate(int maxFailures, long failuresTime, TimeUnit failuresTimeUnit, long suspensionTime, TimeUnit suspensionTimeUnit) {
+        public LoadBalancerBuilder setMaxFailureRate(int maxFailures, long failuresTime, TimeUnit failuresTimeUnit, long suspensionTime, TimeUnit suspensionTimeUnit) {
             loadBalancer.failureRateMaxFailures = maxFailures;
             loadBalancer.failureRateTime = failuresTime;
             loadBalancer.failureRateTimeUnit = failuresTimeUnit;
             loadBalancer.suspensionTime = suspensionTime;
             loadBalancer.suspensionTimeUnit = suspensionTimeUnit;
-
             return this;
         }
 
-        public CompletableFutureConfigBuilder setPolicy(LoadBalancerPolicy policy) {
+        public LoadBalancerBuilder setPolicy(LoadBalancerPolicy policy) {
             loadBalancer.policy = policy;
             return this;
         }
 
-        public CompletableFutureConfigBuilder setMonitor(long checkInterval, TimeUnit checkTimeUnit,  int unhealthyThreshold, int healthyThreshold, long suspensionTime, TimeUnit suspensionTimeUnit, Function<Integer, CompletableFuture<Boolean>> function) {
-            // TODO: Implement
+        public LoadBalancerBuilder setMonitor(long checkInterval, TimeUnit checkTimeUnit,  int unhealthyThreshold, int healthyThreshold, Function<Integer, CompletableFuture<Boolean>> function) {
+            loadBalancer.monitorCheckInterval = checkInterval;
+            loadBalancer.monitorCheckTimeUnit = checkTimeUnit;
+            loadBalancer.monitorUnhealthyThreshold = unhealthyThreshold;
+            loadBalancer.monitorHealthyThreshold = healthyThreshold;
+            loadBalancer.monitorFunction = function;
             return this;
         }
 
@@ -191,6 +259,16 @@ public class LoadBalancer {
             loadBalancer.failureTimes = new AtomicLongArray[loadBalancer.endpointCount];
             for(int i = 0; i < loadBalancer.failureTimes.length; i++) {
                 loadBalancer.failureTimes[i] = new AtomicLongArray(loadBalancer.failureRateMaxFailures);
+            }
+
+            // Setup monitor if it has been set
+            if(loadBalancer.monitorFunction != null) {
+                loadBalancer.monitorUnhealthyCounters = new AtomicIntegerArray(loadBalancer.endpointCount);
+                loadBalancer.monitorHealthyCounters = new AtomicIntegerArray(loadBalancer.endpointCount);
+                loadBalancer.scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
+                loadBalancer.scheduledExecutorService.scheduleWithFixedDelay(() -> {
+                    loadBalancer.checkMonitors();
+                }, 0, loadBalancer.monitorCheckInterval, loadBalancer.monitorCheckTimeUnit);
             }
             return loadBalancer;
         }
