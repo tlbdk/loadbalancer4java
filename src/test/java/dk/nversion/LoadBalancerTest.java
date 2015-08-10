@@ -125,7 +125,6 @@ public class LoadBalancerTest {
         Assert.assertEquals("dk.nversion.LoadBalancerException: All backends suspended", results.get(2).getMessage());
     }
 
-    // TODO: Implement monitor
     @Test
     public void testLoadBalancerMonitor() throws Exception {
         String[] urls = new String[] { "url1" };
@@ -165,5 +164,7 @@ public class LoadBalancerTest {
         Assert.assertEquals("dk.nversion.LoadBalancerException: All backends suspended", results.get(1).getMessage());
         Assert.assertEquals("dk.nversion.LoadBalancerException: All backends suspended", results.get(2).getMessage());
     }
+
+    // TODO: Implement timeout support - http://www.nurkiewicz.com/2014/12/asynchronous-timeouts-with.html
 
 }
