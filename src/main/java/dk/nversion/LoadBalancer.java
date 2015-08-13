@@ -42,6 +42,8 @@ public class LoadBalancer {
     private AtomicIntegerArray monitorHealthyCounters;
     private Function<Integer, CompletableFuture<Boolean>> monitorFunction;
 
+    private AtomicLongArray latencyTimes;
+
     public <T> CompletableFuture<T> wrap(Supplier<CompletableFuture<T>> function)   {
         CompletableFuture<T> result = new CompletableFuture<>();
         retryHelper((index, retryCount) -> function.get(), result);
@@ -63,12 +65,12 @@ public class LoadBalancer {
     private <T> void retryHelper (BiFunction<Integer, Integer, CompletableFuture<T>> function, CompletableFuture<T> result) {
         final int retries = doRetry(function);
         final int index = getNextIndex(function);
-
+        final long start = System.currentTimeMillis();
         if(index > -1) {
             try {
                 function.apply(index, retries).whenComplete((obj, ex) -> {
                     if (ex == null) {
-                        registerSuccess(function, index);
+                        registerSuccess(function, index, start);
                         result.complete(obj);
 
                     } else {
@@ -112,37 +114,60 @@ public class LoadBalancer {
     private int getNextIndex(Object caller) {
         long now = System.currentTimeMillis();
 
-        // Try all endpoints if some are suspended
-        int count = endpointCount;
-        int[] tried = new int[endpointCount];
-        while(count > 0) {
-            // Increment index and convert negative values to positive if need be
-            int index = indexGenerator.getAndIncrement() % endpointCount;
-            if(index < 0) {
-                index += endpointCount;
-            }
-
-            // Don't retry same index
-            if(tried[index] == 0) {
-                // Return index if endpoint is not suspended
-                if (suspensionTimes.get(index) < now) {
-                    return index;
+        if(this.policy == LoadBalancerPolicy.ROUND_ROBIN) {
+            // Try all endpoints if some are suspended
+            int count = endpointCount;
+            int[] tried = new int[endpointCount];
+            while (count > 0) {
+                // Increment index and convert negative values to positive if need be
+                int index = indexGenerator.getAndIncrement() % endpointCount;
+                if (index < 0) {
+                    index += endpointCount;
                 }
 
-                tried[index] = 1;
-                count--;
+                // Don't retry same index
+                if (tried[index] == 0) {
+                    // Return index if endpoint is not suspended
+                    if (suspensionTimes.get(index) < now) {
+                        return index;
+                    }
+
+                    tried[index] = 1;
+                    count--;
+                }
             }
+
+        } else if(this.policy == LoadBalancerPolicy.LATENCY_LAST) {
+            int index = -1;
+            for(int i = 0;  i < latencyTimes.length(); i++) {
+                long current = latencyTimes.get(i);
+                long smallest = Long.MAX_VALUE;
+                if(current < smallest && suspensionTimes.get(i) < now) {
+                    smallest = current;
+                    index = i;
+                }
+            }
+            return index;
         }
+
         return -1;
     }
 
-    private void registerSuccess(Object caller, int index) {
+    private void registerSuccess(Object caller, int index, long start) {
         successCounters.incrementAndGet(index);
         retryCounters.remove(caller);
+        if(policy == LoadBalancerPolicy.LATENCY_LAST) {
+            latencyTimes.set(index, System.currentTimeMillis() - start);
+        }
     }
 
     private void registerFailure(Object caller, int index, boolean last) {
         failureCounters.incrementAndGet(index);
+
+        if(policy == LoadBalancerPolicy.LATENCY_LAST) {
+            // Make sure we don't pick a backend with a failed request next time
+            latencyTimes.set(index, Long.MAX_VALUE - 1);
+        }
 
         if(suspensionTime > 0) {
             // Try to save the failure time in the failureTimes array

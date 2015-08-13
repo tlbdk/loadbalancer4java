@@ -165,6 +165,42 @@ public class LoadBalancerTest {
         Assert.assertEquals("dk.nversion.LoadBalancerException: All backends suspended", results.get(2).getMessage());
     }
 
+
+    /* @Test // TODO: Implement test for latency based load balancing
+    public void testLoadBalancerLatency() throws Exception {
+        String[] urls = new String[] { "url1" };
+
+        LoadBalancer config = LoadBalancer.builder()
+                .setEndpointCount(urls.length)
+                .setPolicy(LoadBalancerPolicy.LATENCY_LAST)
+                .build();
+
+        Thread.sleep(500);
+        List<CompletableFuture<String>> futureResults = new ArrayList<>();
+        for(int i = 0; i < 3; i++) {
+            CompletableFuture<String> roundRobinFuture = config.wrap(() -> {
+                CompletableFuture<String> completableFuture = new CompletableFuture<>();
+                completableFuture.completeExceptionally(new Exception("Normal exception"));
+                return completableFuture;
+            });
+            futureResults.add(roundRobinFuture);
+        }
+
+        List<Exception> results = new ArrayList<>();
+        for(CompletableFuture<String> future : futureResults) {
+            try {
+                future.get();
+
+            } catch (Exception ex){
+                results.add(ex);
+            }
+        }
+
+        Assert.assertEquals("dk.nversion.LoadBalancerException: All backends suspended", results.get(0).getMessage());
+        Assert.assertEquals("dk.nversion.LoadBalancerException: All backends suspended", results.get(1).getMessage());
+        Assert.assertEquals("dk.nversion.LoadBalancerException: All backends suspended", results.get(2).getMessage());
+    } */
+
     // TODO: Implement timeout support - http://www.nurkiewicz.com/2014/12/asynchronous-timeouts-with.html
 
 }
