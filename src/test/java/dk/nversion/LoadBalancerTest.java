@@ -203,4 +203,6 @@ public class LoadBalancerTest {
 
     // TODO: Implement timeout support - http://www.nurkiewicz.com/2014/12/asynchronous-timeouts-with.html
 
+    // TODO: Implement support for setting a master for retry, fx. in cases where we have a master and several slaves with deplyed replication.
+
 }
