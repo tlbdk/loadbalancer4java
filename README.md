@@ -49,3 +49,7 @@ loadBalancedFuture.whenComplete((response, ex) -> {
     }
 });
 ```
+
+## TODO
+* Implement caching support like Guava CacheBuilder
+
