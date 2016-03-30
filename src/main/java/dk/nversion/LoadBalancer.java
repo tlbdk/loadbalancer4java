@@ -275,6 +275,17 @@ public class LoadBalancer {
             return this;
         }
 
+        public <K, V> LoadBalancerBuilder setCache(CompletableFutureCache<K, V> cache) {
+            //ConcurrentHashMap<T,T> map = ;
+            return this;
+        }
+
+        public <T> LoadBalancerBuilder setCache(long checkInterval, TimeUnit checkTimeUnit, Class<T> returnType, BiFunction<Integer, CompletableFutureCache, CompletableFuture<T>> function) {
+            loadBalancer.monitorCheckInterval = checkInterval;
+            loadBalancer.monitorCheckTimeUnit = checkTimeUnit;
+            //loadBalancer.monitorFunction = function;
+            return this;
+        }
 
         public LoadBalancer build() {
             loadBalancer.suspensionTimes = new AtomicLongArray(loadBalancer.endpointCount);
@@ -299,3 +310,4 @@ public class LoadBalancer {
         }
     }
 }
+

@@ -205,4 +205,38 @@ public class LoadBalancerTest {
 
     // TODO: Implement support for setting a master for retry, fx. in cases where we have a master and several slaves with deplyed replication.
 
+    // TODO: Implement support for caching
+    @Test
+    public void testLoadBalancerSelfRefreshingCaching() throws Exception {
+        String[] urls = new String[] { "url1" };
+
+        LoadBalancer config = LoadBalancer.builder()
+                .setEndpointCount(urls.length)
+                .setCache(100, TimeUnit.MILLISECONDS, String.class, (index, cache) -> {
+                    CompletableFuture<String> valueFuture = new CompletableFuture<String>();
+                    valueFuture.complete("ValueToBeCached");
+                    return valueFuture;
+                })
+                .build();
+    }
+
+    @Test
+    public void testLoadBalancerCaching() throws Exception {
+        String[] urls = new String[] { "url1" };
+
+        CompletableFutureCache<String,String> cache = new CompletableFutureCache<>((key, value, store) -> {
+            store.put(key, value, 100, TimeUnit.MILLISECONDS);
+        });
+
+        LoadBalancer config = LoadBalancer.builder()
+                .setEndpointCount(urls.length)
+                .build();
+
+            CompletableFuture<String> cachedFuture = config.wrap((index) -> {
+                CompletableFuture<String> result = cache.wrap(urls[index], simpleSuccess(urls[index]));
+                return result;
+        });
+
+    }
+
 }
